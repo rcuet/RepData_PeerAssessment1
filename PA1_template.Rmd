@@ -17,79 +17,77 @@ Sys.setlocale("LC_TIME","English")
 Histogram of the total number of steps taken each day
 
 ```{r, message = FALSE, warning=FALSE,echo=TRUE } 
+library(dplyr)
+data <- tbl_df(data)
 ## What is mean total number of steps taken per day?
-stepsxday <- aggregate(data$steps,by= list(data$date), sum, na.rm= TRUE)
-names(stepsxday) <- c("day","steps")
-
+stepsxday <- data %>% group_by(date) %>% summarise(total_steps = sum(steps, na.rm = T),
+                                      mean_steps = mean(steps, na.rm = T))
 library(ggplot2)
-ggplot(stepsxday,aes(steps))+geom_histogram()
+ggplot(stepsxday,aes(total_steps))+geom_histogram()+labs(x="total number of steps")
 ```
 
 Mean and median number of steps taken each day
 
 ```{r, message = FALSE, warning=FALSE,echo=TRUE } 
-mean <- aggregate(data$steps,by= list(data$date), mean, na.rm= TRUE)
-median <- aggregate(data$steps,by= list(data$date), median, na.rm= TRUE)$x
-mean_median <- data.frame(mean,median); names(mean_median) <- c("date","mean","median")
-mean_median
+summary(stepsxday[,2:3])
 ```
 
 Time series plot of the average number of steps taken
 
 ```{r, message = FALSE, warning=FALSE,echo=TRUE } 
 ## What is the average daily activity pattern?
-stepsxinterval <- aggregate(data$steps,by= list(data$interval), mean, na.rm= TRUE)
-names(stepsxinterval) <- c("interval","steps")
+stepsxinterval <- data %>% group_by(interval) %>% 
+        summarise(mean_steps = mean(steps, na.rm = T))
 
-ggplot(stepsxinterval, aes(interval,steps))+ geom_line()+ labs(x="5-minute interval", y = " average number of steps taken")
+ggplot(stepsxinterval, aes(interval,mean_steps))+ geom_line()+ labs(x="5-minute interval", y = " average number of steps taken")
 ```
 
 The 5-minute interval that, on average, contains the maximum number of steps
 
 ```{r, message = FALSE, warning=FALSE,echo=TRUE } 
-stepsxinterval$interval[stepsxinterval$steps==max(stepsxinterval$steps)]
+stepsxinterval$interval[stepsxinterval$mean_steps==max(stepsxinterval$mean_steps)]
 ```
 
 Code to describe and show a strategy for imputing missing data
 
 ```{r, message = FALSE, warning=FALSE,echo=TRUE } 
 ## Imputing missing values
-steps1 <- data.frame()
-for(i in seq_along(data$steps)) {
-        if(is.na(data[i,1])) fill <- stepsxinterval$steps[stepsxinterval$interval ==data$interval[i]] else fill <- data[i,1]
-        steps1 <- rbind(steps1,fill)
+any(is.na(data[,2:3])) # There is only NAs in the fist column
+data1 <- data
+for(i in seq_along(data1$steps)) {
+        if(is.na(data1[i,1])) {
+                row <- stepsxinterval$interval
+                data1$steps[i] <- subset(stepsxinterval$mean_steps,row == data$interval[i])     }
 }
 ```
 
 Histogram of the total number of steps taken each day after missing values are imputed
 
 ```{r, message = FALSE, warning=FALSE,echo=TRUE } 
-data1 <- cbind(steps1,data[,2:3]); names(data1)[1]<- "steps"
+stepsxday1 <- data1 %>% group_by(date) %>% summarise(total_steps = sum(steps, na.rm = T),
+                                      mean_steps = mean(steps, na.rm = T))
 
-stepsxday1 <- aggregate(data1$steps,by= list(data1$date), sum, na.rm= TRUE)
-names(stepsxday1) <- c("day","steps")
+ggplot(stepsxday1,aes(total_steps))+geom_histogram()+labs(x="total number of steps")
 
-ggplot(stepsxday1,aes(steps))+geom_histogram()
-
-mean <- aggregate(data1$steps,by= list(data1$date), mean, na.rm= TRUE)
-median <- aggregate(data1$steps,by= list(data1$date), median, na.rm= TRUE)$x
-mean_median <- data.frame(mean,median); names(mean_median) <- c("date","mean","median")
-mean_median
+summary(stepsxday1[,2:3])
 ```
-
+                The mean and median of de total number of steps taken each day after missing values are imputed are similar because I use the mean for replace the missing values.
+                
 Panel plot comparing the average number of steps taken per 5-minute interval across weekdays and weekends
 
 ```{r, message = FALSE, warning=FALSE,echo=TRUE } 
 ## Are there differences in activity patterns between weekdays and weekends?
-data1$weekday <- weekdays(data1$date)
-typeday <- character()
-for(i in seq_along(data1$steps)) {
-        if(data1$weekday[i] %in% c("Saturday","Sunday") ) {
-                fill <- "weekend"
-                }  else fill <- "weekday"
-        typeday <- rbind(typeday,fill)
-}
+data1$typeday <- ifelse(weekdays(data1$date) %in% c("Saturday", "Sunday"), "weekend", "weekday")
 
-data1$typeday <- typeday
-ggplot(data1,aes(interval,steps))+geom_line()+ facet_grid(typeday~.)+ labs(x = "5-minute interval", y = "number of steps taken")
+mean_wy <- data1 %>% filter(typeday == "weekday") %>% group_by(interval) %>%
+        summarise(steps= mean(steps)) %>% mutate(typeday = "weekdays")
+
+mean_wd <- data1 %>% filter(typeday == "weekend") %>% group_by(interval) %>%
+        summarise(steps= mean(steps)) %>% mutate(typeday = "weekends")
+
+mean_by_type <-bind_rows(mean_wy ,mean_wd)
+
+ggplot(mean_by_type,aes(interval,steps))+geom_line()+ facet_grid(typeday~.)+ labs(x = "5-minute interval", y = "number of steps taken")
 ```
+
+There are differences in activity patterns between weekdays and weekends, in weekdays there are higher activity before the 10000th 5-minute interval, after these there are higher activity in weekends.
