@@ -5,21 +5,91 @@ output:
     keep_md: true
 ---
 
-
+```{r, message = FALSE, warning=FALSE,echo=TRUE } 
 ## Loading and preprocessing the data
+setwd("D:/Reproducible research/RepData_PeerAssessment1")
+unzip("./activity.zip")
+data <- read.csv("./activity.csv",stringsAsFactors = FALSE, na.strings = NA)
+data$date <- as.Date(data$date, "%Y-%m-%d")
+Sys.setlocale("LC_TIME","English")
+```
 
+Histogram of the total number of steps taken each day
 
-
+```{r, message = FALSE, warning=FALSE,echo=TRUE } 
 ## What is mean total number of steps taken per day?
+stepsxday <- aggregate(data$steps,by= list(data$date), sum, na.rm= TRUE)
+names(stepsxday) <- c("day","steps")
 
+library(ggplot2)
+ggplot(stepsxday,aes(steps))+geom_histogram()
+```
 
+Mean and median number of steps taken each day
 
+```{r, message = FALSE, warning=FALSE,echo=TRUE } 
+mean <- aggregate(data$steps,by= list(data$date), mean, na.rm= TRUE)
+median <- aggregate(data$steps,by= list(data$date), median, na.rm= TRUE)$x
+mean_median <- data.frame(mean,median); names(mean_median) <- c("date","mean","median")
+mean_median
+```
+
+Time series plot of the average number of steps taken
+
+```{r, message = FALSE, warning=FALSE,echo=TRUE } 
 ## What is the average daily activity pattern?
+stepsxinterval <- aggregate(data$steps,by= list(data$interval), mean, na.rm= TRUE)
+names(stepsxinterval) <- c("interval","steps")
 
+ggplot(stepsxinterval, aes(interval,steps))+ geom_line()+ labs(x="5-minute interval", y = " average number of steps taken")
+```
 
+The 5-minute interval that, on average, contains the maximum number of steps
 
+```{r, message = FALSE, warning=FALSE,echo=TRUE } 
+stepsxinterval$interval[stepsxinterval$steps==max(stepsxinterval$steps)]
+```
+
+Code to describe and show a strategy for imputing missing data
+
+```{r, message = FALSE, warning=FALSE,echo=TRUE } 
 ## Imputing missing values
+steps1 <- data.frame()
+for(i in seq_along(data$steps)) {
+        if(is.na(data[i,1])) fill <- stepsxinterval$steps[stepsxinterval$interval ==data$interval[i]] else fill <- data[i,1]
+        steps1 <- rbind(steps1,fill)
+}
+```
 
+Histogram of the total number of steps taken each day after missing values are imputed
 
+```{r, message = FALSE, warning=FALSE,echo=TRUE } 
+data1 <- cbind(steps1,data[,2:3]); names(data1)[1]<- "steps"
 
+stepsxday1 <- aggregate(data1$steps,by= list(data1$date), sum, na.rm= TRUE)
+names(stepsxday1) <- c("day","steps")
+
+ggplot(stepsxday1,aes(steps))+geom_histogram()
+
+mean <- aggregate(data1$steps,by= list(data1$date), mean, na.rm= TRUE)
+median <- aggregate(data1$steps,by= list(data1$date), median, na.rm= TRUE)$x
+mean_median <- data.frame(mean,median); names(mean_median) <- c("date","mean","median")
+mean_median
+```
+
+Panel plot comparing the average number of steps taken per 5-minute interval across weekdays and weekends
+
+```{r, message = FALSE, warning=FALSE,echo=TRUE } 
 ## Are there differences in activity patterns between weekdays and weekends?
+data1$weekday <- weekdays(data1$date)
+typeday <- character()
+for(i in seq_along(data1$steps)) {
+        if(data1$weekday[i] %in% c("Saturday","Sunday") ) {
+                fill <- "weekend"
+                }  else fill <- "weekday"
+        typeday <- rbind(typeday,fill)
+}
+
+data1$typeday <- typeday
+ggplot(data1,aes(interval,steps))+geom_line()+ facet_grid(typeday~.)+ labs(x = "5-minute interval", y = "number of steps taken")
+```
